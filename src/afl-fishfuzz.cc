@@ -54,32 +54,6 @@ void initialized_bug_map() {
     }
   }
 }
-
-void initialized_dist_map() {
-  Json::Value   shortest_dist_map;
-  Json::Reader  reader;
-  std::string   temporary_dir = std::getenv("TMP_DIR"), errs;
-  std::ifstream dist_map(temporary_dir + "/runtimes/calldst.json",
-                         std::ifstream::binary);
-
-  if (!reader.parse(dist_map, shortest_dist_map, false))
-    PFATAL("Failed loading dist map !");
-
-  for (auto dst_s : shortest_dist_map.getMemberNames()) {
-    std::map<u32, double> func_shortest;
-    Json::Value           func_shortest_value = shortest_dist_map[dst_s];
-
-    for (auto src_s : func_shortest_value.getMemberNames()) {
-      func_shortest.insert(std::make_pair(
-          std::stoi(src_s), func_shortest_value[src_s].asDouble()));
-    }
-    func_dist_map.insert(std::make_pair(std::stoi(dst_s), func_shortest));
-  }
-
-  initialized_bug_map();
-}
-
-/* prospector begin*/
 // load priority-based map
 void initialized_dist_map_p() {
   Json::Value   shortest_dist_map;
@@ -128,8 +102,29 @@ void initialized_dist_map_p() {
   initialized_bug_map();
 }
 
+void initialized_dist_map() {
+  Json::Value   shortest_dist_map;
+  Json::Reader  reader;
+  std::string   temporary_dir = std::getenv("TMP_DIR"), errs;
+  std::ifstream dist_map(temporary_dir + "/runtimes/calldst.json",
+                         std::ifstream::binary);
 
+  if (!reader.parse(dist_map, shortest_dist_map, false))
+    PFATAL("Failed loading dist map !");
 
+  for (auto dst_s : shortest_dist_map.getMemberNames()) {
+    std::map<u32, double> func_shortest;
+    Json::Value           func_shortest_value = shortest_dist_map[dst_s];
+
+    for (auto src_s : func_shortest_value.getMemberNames()) {
+      func_shortest.insert(std::make_pair(
+          std::stoi(src_s), func_shortest_value[src_s].asDouble()));
+    }
+    func_dist_map.insert(std::make_pair(std::stoi(dst_s), func_shortest));
+  }
+
+  initialized_bug_map();
+}
 
 /*initialize target function map*/
 void initialized_target_function_map() {
@@ -152,13 +147,6 @@ void initialized_target_function_map() {
     funcid2targetid_map[std::stoi(funcid_str)] = target_list;
   }
 
-  // for(const auto &pair : funcid2targetid_map){
-  //   std::cout << pair.first << ":";
-  //   for(int value : pair.second){
-  //     std::cout << value << " ";
-  //   }
-  //   std::cout << std::endl;
-  // }
 
   std::ifstream fi(temporary_dir + "/target2function.csv");
   if (fi.is_open()) {
@@ -173,8 +161,6 @@ void initialized_target_function_map() {
     }
   }
 }
-
-
 Targets get_func_target_group(u32 funcId) {
   std::vector<u32> result;
 
@@ -191,8 +177,6 @@ Targets get_func_target_group(u32 funcId) {
 
   return res;
 }
-
-
 Targets get_target_group(u32 targetId) {
   std::vector<u32> result;
 
@@ -215,16 +199,26 @@ Targets get_target_group(u32 targetId) {
 
   return res;
 }
-
 u32 get_funcid(u32 targetId) {
-  auto funcIdIter = targetid2funcid_map.find(targetId);
-  if (funcIdIter != targetid2funcid_map.end()) { return funcIdIter->second; }
-  return FUNC_SIZE;
+
+    try {
+        if (targetid2funcid_map.empty()) {
+            initialized_target_function_map();
+        }
+        auto funcIdIter = targetid2funcid_map.find(targetId);
+        if (funcIdIter != targetid2funcid_map.end()) { 
+            return funcIdIter->second; 
+        }
+        return FUNC_SIZE;
+    } catch (const std::exception& e) {
+        std::cerr << "get_funcid error: " << e.what() << std::endl;
+        return FUNC_SIZE; 
+    }
 }
+
 void free_target_group(Targets res) {
   delete[] res.targets;
 }
-
 
 
 const u32 *get_reachable_functions(u32 funcId, size_t *outSize) {
@@ -236,7 +230,6 @@ const u32 *get_reachable_functions(u32 funcId, size_t *outSize) {
   *outSize = 0;
   return nullptr;
 }
-
 
 static inline bool compareValues(
     const std::pair<std::uint32_t, std::uint32_t> &pair1,
@@ -255,7 +248,6 @@ bool targetCompare(const std::pair<double, std::uint32_t> &pair1,
   // If the first elements are equal, compare based on the second element (b)
   return pair1.second < pair2.second;
 }
-
 
 // initialize target priority map
 void initialized_target_priority_map(afl_state_t *afl) {
@@ -283,14 +275,11 @@ void initialized_target_priority_map(afl_state_t *afl) {
     }
   }
   /* initialize focused target based on priority */
-  // sort(target_priority_vec.begin(), target_priority_vec.end(),
-  // compareValues); afl->valuable_target = target_priority_vec[0].first;
   afl->valuable_function = get_funcid(afl->valuable_target);
   OKF("finish loading the target priority map...,valuable target is %d",
       afl->valuable_target);
   tp.close();
 }
-
 
 void write_target_priority_log(
     afl_state_t                                  *afl,
@@ -344,9 +333,6 @@ void write_target_priority_log(
     // ", distance " << dist2 << ".\n";
   }
 }
-/* prospector end*/
-
-
 void write_function_log(afl_state_t *afl, struct queue_entry *q1,
                         struct queue_entry *q2, u32 dist1, u32 dist2,
                         u32 func_id) {
@@ -469,7 +455,6 @@ void target_ranking_original(afl_state_t *afl) {
   }
 }
 
-/* prospector begin*/
 void target_ranking(afl_state_t *afl) {
   // std::vector<std::pair<std::uint32_t, std::uint32_t>> reached_bugs;
   std::vector<std::pair<double, std::uint32_t>> reached_bugs;
@@ -558,8 +543,6 @@ void target_ranking(afl_state_t *afl) {
   // std::sort(normalized_reached_bugs.begin(), normalized_reached_bugs.end());
   write_target_priority_log(afl, reached_bugs);
 }
-/* prospector end*/
-
 
 void add_to_vector(u32 length) {
   seed_length.push_back(length);

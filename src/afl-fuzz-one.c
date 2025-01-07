@@ -329,7 +329,6 @@ static u8 is_too_large(afl_state_t *afl, struct queue_entry *q) {
   return 0;
 }
 
-
 /* Take the current entry from the queue, fuzz it for a while. This
    function is a tad too long... returns 0 if fuzzed successfully, 1 if
    skipped or bailed out. */
@@ -1866,7 +1865,7 @@ custom_mutator_stage:
 havoc_stage:
 
   /* Initial alias table creation modified prospector */
-  if (afl->use_byte_fitness) create_byte_alias_table(afl, afl->queue_cur);
+  if (afl->use_byte_fitness && !splice_cycle) create_byte_alias_table(afl, afl->queue_cur);
 
   afl->stage_cur_byte = -1;
 
@@ -2248,7 +2247,8 @@ havoc_stage:
 
             u32 clone_len = choose_block_len(afl, temp_len);
             u32 clone_from = rand_below(afl, temp_len - clone_len + 1);
-            u32 clone_to = URfitness(afl, temp_len);
+            //u32 clone_to = URfitness(afl, temp_len);
+            u32 clone_to = rand_below(afl, temp_len);
 
 #ifdef INTROSPECTION
             snprintf(afl->m_tmp, sizeof(afl->m_tmp), " CLONE-%s-%u-%u-%u",
@@ -2284,7 +2284,8 @@ havoc_stage:
             /* Insert a block of constant bytes (25%). */
 
             u32 clone_len = choose_block_len(afl, HAVOC_BLK_XL);
-            u32 clone_to = URfitness(afl, temp_len);
+            //u32 clone_to = URfitness(afl, temp_len);
+            u32 clone_to = rand_below(afl, temp_len);
 
 #ifdef INTROSPECTION
             snprintf(afl->m_tmp, sizeof(afl->m_tmp), " CLONE-%s-%u-%u",
@@ -2449,6 +2450,7 @@ havoc_stage:
 
           u32 del_len = choose_block_len(afl, temp_len - 1);
           u32 del_from = URfitness(afl, temp_len - del_len + 1);
+          //u32 del_from = rand_below(afl, temp_len - del_len + 1);
 
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " DEL-%u-%u", del_from,
@@ -2601,7 +2603,8 @@ havoc_stage:
             if (copy_len > temp_len) copy_len = temp_len;
 
             copy_from = rand_below(afl, new_len - copy_len + 1);
-            copy_to = URfitness(afl, temp_len - copy_len + 1);
+            //copy_to = URfitness(afl, temp_len - copy_len + 1);
+            copy_to = rand_below(afl, temp_len - copy_len + 1);
 
 #ifdef INTROSPECTION
             snprintf(afl->m_tmp, sizeof(afl->m_tmp),
@@ -2618,7 +2621,8 @@ havoc_stage:
 
             clone_len = choose_block_len(afl, new_len);
             clone_from = rand_below(afl, new_len - clone_len + 1);
-            clone_to = URfitness(afl, temp_len + 1);
+            //clone_to = URfitness(afl, temp_len + 1);
+            clone_to = rand_below(afl, temp_len + 1);
 
             u8 *temp_buf = afl_realloc(AFL_BUF_PARAM(out_scratch),
                                        temp_len + clone_len + 1);

@@ -20,11 +20,7 @@ void update_focused_targets(afl_state_t *afl) {
 }
 void add_target_group_into_focused(afl_state_t *afl) {
   Targets res;
-  // if (afl->disable_priority_choice != DISABLE_TARGET) {
-  //   afl->focused_targets_count = 0;
-  //   afl->skip_intra_func = 0;
-  //   res = get_func_target_group(afl->valuable_function);
-  // } else {
+
   afl->focused_targets_count = 0;
   afl->valuable_function = FUNC_SIZE;
   afl->skip_intra_func = 0;
@@ -215,17 +211,29 @@ void update_fitness_in_havoc(afl_state_t *afl, struct queue_entry *q,
   /* if one byte in a group with the size group_size changes the fitness,
       other bytes in the group have the same change.
    */
-  u32  i = q->align_len / ACO_GROUP_SIZE;
+  u32 i = q->align_len / ACO_GROUP_SIZE;
   u32 *group_seed = ((u32 *)seed_mem);
   u32 *group_cur_input = ((u32 *)cur_input_mem);
   u32 *group_byte_score = (u32 *)(q->byte_score);
 
+  u32 max_index = cur_input_len / sizeof(u32);
+  u32* end_seed = group_seed + max_index;
+  u32* end_cur_input = group_cur_input + max_index;
+
   while (i--) {
-    if ((*(group_seed++)) != (*(group_cur_input++))) {
+    // Ensure we are within the boundaries of the arrays
+    if (group_seed >= end_seed || group_cur_input >= end_cur_input) {
+        break;
+    }
+
+    if (*(group_seed) != *(group_cur_input)) {
       update_byte_score_havoc(afl, group_byte_score);
     }
+    group_seed++;
+    group_cur_input++;
     group_byte_score++;
   }
+
 }
 
 static inline u32 select_one_byte(afl_state_t *afl, struct queue_entry *q,
@@ -314,7 +322,7 @@ void create_byte_alias_table(afl_state_t *afl, struct queue_entry *q) {
 /* select a way to choose mutated bytes */
 u32 URfitness(afl_state_t *afl, u32 input_len) {
   struct queue_entry *q = afl->queue_cur;
-  if (afl->use_byte_fitness && (q->len == input_len)) {
+  if (afl->use_byte_fitness && (q->len == input_len) &&  strcmp(afl->stage_short, "splice") != 0) {
     return select_one_byte(afl, q, input_len);
   } else {
     return rand_below(afl, input_len);
